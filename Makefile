@@ -1,18 +1,20 @@
 CC = gcc
-CFLAGS = -Wall -O2 -Iinclude
-LDFLAGS = 
+CFLAGS = -Wall -Wno-unused-result -O2 -Iinclude
+LDFLAGS =
 SRC = src/main.c src/preproc.c src/utilidades.c src/imagen.c src/reconocimiento.c
-OBJ = $(SRC:.c=.o)
+OBJ = $(patsubst src/%.c, obj/%.o, $(SRC))
 BIN = EDAcodebar
 
-all: $(BIN)
+all: obj $(BIN)
+
+obj:
+	mkdir -p obj
 
 $(BIN): $(OBJ)
 	$(CC) $(OBJ) -o $(BIN) $(LDFLAGS)
 
-src/%.o: src/%.c include/%.h
+obj/%.o: src/%.c include/%.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJ) $(BIN)
-
+	rm -f obj/*.o $(BIN)

@@ -5,28 +5,14 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include "imagen.h"
 
-typedef struct Producto {
-    	char *codigo;
-    	char *nombre;
-    	int precio;
-	int orden;
-    	struct Producto *sig;
-} Producto;
-
-typedef struct {
-    	Producto **buckets;
-    	size_t capacidad;
-    	int elementos;
-	int next_orden;
-} TablaHash;
-
-TablaHash *crear_TH(size_t capacidad);
-void destruir_TH(TablaHash *th);
-int insertar_TH(TablaHash *th, const char *codigo, const char *nombre, int precio);
-Producto *buscar_TH(TablaHash *th, const char *codigo);
-TablaHash *cargar_inventario(const char *ruta);
-void imprimir_resumen_inventario(TablaHash *th, int max_items);
+Imagen *convertirAGris(Imagen *img);
+Imagen *binarizarImagen(Imagen *img, int umbral);
+Imagen *ajustarContraste(Imagen *img, int nuevoMin, int nuevoMax);
+Imagen *recortarImagen(Imagen *img, int x, int y, int w, int h);
+Imagen *rotarImagen90(Imagen *img);
+Imagen *rotarImagen180(Imagen *img);
+Imagen *rotarImagen270(Imagen *img);
 
 #endif
-
