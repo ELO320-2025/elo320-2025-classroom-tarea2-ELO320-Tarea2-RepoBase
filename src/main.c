@@ -18,9 +18,8 @@ int main(int argc, char **argv) {
     liberarImagen(img);
     img = b;
 
-    int fila = img->alto / 2;
+    int fila = img->alto * 0.40;
     int *linea = malloc(sizeof(int) * img->ancho);
-
     int i;
     for (i = 0; i < img->ancho; i++) linea[i] = img->gris[fila][i];
 
@@ -38,21 +37,19 @@ int main(int argc, char **argv) {
     if (iniPix < 0 || finPix <= iniPix) {
         free(linea);
         liberarImagen(img);
-        printf("No se detectaron barras\n");
         return 0;
     }
 
     int largoRec = finPix - iniPix + 1;
     int *rec = malloc(sizeof(int) * largoRec);
-
     for (i = 0; i < largoRec; i++) rec[i] = linea[iniPix + i];
     free(linea);
 
     SecuenciaBarras s = obtenerSecuenciaBarras(rec, largoRec);
+    printf("Recorte: ini=%d fin=%d largo=%d\n", iniPix, finPix, largoRec);
     free(rec);
 
     SecuenciaBarras n = normalizarSecuencia(s);
-
     int ini = detectarInicio(n);
     int cen = detectarCentro(n, ini);
 
@@ -61,8 +58,6 @@ int main(int argc, char **argv) {
     if (c.valido) {
         for (i = 0; i < 13; i++) printf("%d", c.digitos[i]);
         printf("\n");
-    } else {
-        printf("No se pudo decodificar\n");
     }
 
     free(s.anchos);
