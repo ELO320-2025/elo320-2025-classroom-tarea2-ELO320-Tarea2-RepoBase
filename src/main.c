@@ -5,7 +5,11 @@ static unsigned char **leer_ppm_pgm(const char *ruta, int *ancho, int *alto) {
     if (!f) return NULL;
 
     char tipo[3];
-    if (!fgets(tipo, sizeof(tipo), f)) { fclose(f); return NULL; }
+    if (!fgets(tipo, sizeof(tipo), f)) {
+        fclose(f);
+        return NULL;
+    }
+
     if (tipo[0] != 'P' || (tipo[1] != '2' && tipo[1] != '3')) {
         fclose(f);
         return NULL;
@@ -29,17 +33,22 @@ static unsigned char **leer_ppm_pgm(const char *ruta, int *ancho, int *alto) {
     }
 
     unsigned char **mat = malloc((*alto) * sizeof(unsigned char *));
-    if (!mat) { fclose(f); return NULL; }
+    if (!mat) {
+        fclose(f);
+        return NULL;
+    }
 
-    for (int y = 0; y < *alto; y++) {
+    int y, x;
+    for (y = 0; y < *alto; y++) {
         mat[y] = malloc((*ancho) * sizeof(unsigned char));
         if (!mat[y]) {
-            for (int r = 0; r < y; r++) free(mat[r]);
+            int k;
+            for (k = 0; k < y; k++) free(mat[k]);
             free(mat);
             fclose(f);
             return NULL;
         }
-        for (int x = 0; x < *ancho; x++) {
+        for (x = 0; x < *ancho; x++) {
             int r, g, b, v;
             if (tipo[1] == '2') {
                 fscanf(f, "%d", &v);
@@ -57,24 +66,33 @@ static unsigned char **leer_ppm_pgm(const char *ruta, int *ancho, int *alto) {
     return mat;
 }
 
-int main() {
+static void liberar_imagen(unsigned char **img, int alto) {
+    int i;
+    for (i = 0; i < alto; i++) free(img[i]);
+    free(img);
+}
+
+static void modo_manual() {
     char ruta[256];
-    printf("Ingrese ruta del archivo .ppm/.pgm: ");
-    if (!fgets(ruta, sizeof(ruta), stdin)) return 1;
+    int ancho = 0, alto = 0;
+    char codigo[14];
+    int dv;
+
+    printf("Ingrese nombre de la imagen: ");
+    fflush(stdout);
+
+    if (!fgets(ruta, sizeof(ruta), stdin)) return;
     ruta[strcspn(ruta, "\n")] = 0;
 
-    int ancho = 0, alto = 0;
     unsigned char **img = leer_ppm_pgm(ruta, &ancho, &alto);
     if (!img) {
         printf("No se pudo leer la imagen.\n");
-        return 1;
+        return;
     }
 
-    char codigo[14];
-    int dv;
     int encontrado = 0;
-
-    for (int k = 30; k <= 70; k += 2) {
+    int k;
+    for (k = 30; k <= 70; k += 2) {
         int y = alto * k / 100;
         int r = decodificar_ean13_desde_grises(img[y], ancho, codigo, &dv);
         if (r == 0 || r == 2) {
@@ -88,8 +106,26 @@ int main() {
     if (!encontrado)
         printf("No se pudo decodificar el código.\n");
 
-    for (int i = 0; i < alto; i++) free(img[i]);
-    free(img);
+    liberar_imagen(img, alto);
+}
+
+int main(int argc, char *argv[]) {
+    if (argc < 4) {
+        printf("Uso: ./EDAcodebar <modo> <inventario> <config>\n");
+        return 1;
+    }
+
+    int modo = atoi(argv[1]);
+
+    if (modo == 1) {
+        modo_manual();
+    } else if (modo == 2) {
+        printf("Modo automático no implementado aún.\n");
+    } else if (modo == 3) {
+        printf("Modo semi-automático no implementado aún.\n");
+    } else {
+        printf("Modo inválido.\n");
+    }
 
     return 0;
 }
