@@ -1,67 +1,95 @@
 #include "main.h"
 
-int main(int argc, char **argv) {
+static unsigned char **leer_ppm_pgm(const char *ruta, int *ancho, int *alto) {
+    FILE *f = fopen(ruta, "r");
+    if (!f) return NULL;
+
+    char tipo[3];
+    if (!fgets(tipo, sizeof(tipo), f)) { fclose(f); return NULL; }
+    if (tipo[0] != 'P' || (tipo[1] != '2' && tipo[1] != '3')) {
+        fclose(f);
+        return NULL;
+    }
+
+    int c, done = 0;
+    while (!done) {
+        c = fgetc(f);
+        if (c == '#') {
+            while (c != '\n' && c != EOF) c = fgetc(f);
+        } else {
+            ungetc(c, f);
+            done = 1;
+        }
+    }
+
+    int maxv;
+    if (fscanf(f, "%d %d %d", ancho, alto, &maxv) != 3) {
+        fclose(f);
+        return NULL;
+    }
+
+    unsigned char **mat = malloc((*alto) * sizeof(unsigned char *));
+    if (!mat) { fclose(f); return NULL; }
+
+    for (int y = 0; y < *alto; y++) {
+        mat[y] = malloc((*ancho) * sizeof(unsigned char));
+        if (!mat[y]) {
+            for (int r = 0; r < y; r++) free(mat[r]);
+            free(mat);
+            fclose(f);
+            return NULL;
+        }
+        for (int x = 0; x < *ancho; x++) {
+            int r, g, b, v;
+            if (tipo[1] == '2') {
+                fscanf(f, "%d", &v);
+            } else {
+                fscanf(f, "%d %d %d", &r, &g, &b);
+                v = (r + g + b) / 3;
+            }
+            if (v < 0) v = 0;
+            if (v > 255) v = 255;
+            mat[y][x] = (unsigned char)v;
+        }
+    }
+
+    fclose(f);
+    return mat;
+}
+
+int main() {
     char ruta[256];
-    printf("Ingrese nombre de la imagen: ");
-    if (scanf("%255s", ruta) != 1) return 0;
+    printf("Ingrese ruta del archivo .ppm/.pgm: ");
+    if (!fgets(ruta, sizeof(ruta), stdin)) return 1;
+    ruta[strcspn(ruta, "\n")] = 0;
 
-    Imagen *img = leerImagen(ruta);
-    if (!img) return 0;
-
-    if (img->tipo == 3) {
-        Imagen *g = convertirAGris(img);
-        liberarImagen(img);
-        img = g;
+    int ancho = 0, alto = 0;
+    unsigned char **img = leer_ppm_pgm(ruta, &ancho, &alto);
+    if (!img) {
+        printf("No se pudo leer la imagen.\n");
+        return 1;
     }
 
-    Imagen *b = binarizarImagen(img, 100);
-    liberarImagen(img);
-    img = b;
+    char codigo[14];
+    int dv;
+    int encontrado = 0;
 
-    int fila = img->alto * 0.40;
-    int *linea = malloc(sizeof(int) * img->ancho);
-    int i;
-    for (i = 0; i < img->ancho; i++) linea[i] = img->gris[fila][i];
-
-    int iniPix = -1;
-    int finPix = -1;
-
-    for (i = 0; i < img->ancho; i++) {
-        if (linea[i] == 0) { iniPix = i; break; }
+    for (int k = 30; k <= 70; k += 2) {
+        int y = alto * k / 100;
+        int r = decodificar_ean13_desde_grises(img[y], ancho, codigo, &dv);
+        if (r == 0 || r == 2) {
+            printf("Fila usada: %d\n", y);
+            printf("Código EAN-13: %s\n", codigo);
+            encontrado = 1;
+            break;
+        }
     }
 
-    for (i = img->ancho - 1; i >= 0; i--) {
-        if (linea[i] == 0) { finPix = i; break; }
-    }
+    if (!encontrado)
+        printf("No se pudo decodificar el código.\n");
 
-    if (iniPix < 0 || finPix <= iniPix) {
-        free(linea);
-        liberarImagen(img);
-        return 0;
-    }
+    for (int i = 0; i < alto; i++) free(img[i]);
+    free(img);
 
-    int largoRec = finPix - iniPix + 1;
-    int *rec = malloc(sizeof(int) * largoRec);
-    for (i = 0; i < largoRec; i++) rec[i] = linea[iniPix + i];
-    free(linea);
-
-    SecuenciaBarras s = obtenerSecuenciaBarras(rec, largoRec);
-    printf("Recorte: ini=%d fin=%d largo=%d\n", iniPix, finPix, largoRec);
-    free(rec);
-
-    SecuenciaBarras n = normalizarSecuencia(s);
-    int ini = detectarInicio(n);
-    int cen = detectarCentro(n, ini);
-
-    CodigoEAN13 c = decodificarEAN13(n, ini, cen);
-
-    if (c.valido) {
-        for (i = 0; i < 13; i++) printf("%d", c.digitos[i]);
-        printf("\n");
-    }
-
-    free(s.anchos);
-    free(n.anchos);
-    liberarImagen(img);
     return 0;
 }
