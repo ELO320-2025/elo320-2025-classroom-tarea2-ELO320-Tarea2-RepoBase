@@ -116,6 +116,47 @@ int main(int argc, char *argv[]) {
     }
 
     int modo = atoi(argv[1]);
+    const char *ruta_inv = argv[2];
+    const char *ruta_cfg = argv[3];
+
+    HashInv *inv = crear_hash_inv();
+    NodoProd *listaInv = cargar_inventario_ordenado(ruta_inv, inv);
+    if (!listaInv) {
+        printf("No se pudo cargar inventario.\n");
+        destruir_hash_inv(inv);
+        return 1;
+    }
+
+    Params params;
+    ColaImagenes cola;
+    int ok = cargar_config(ruta_cfg, &params, &cola);
+    if (!ok) {
+        printf("No se pudo cargar configuración.\n");
+        destruir_hash_inv(inv);
+        return 1;
+    }
+
+    int totalProductos = contar_productos(listaInv);
+
+    printf("Cargando inventario desde '%s'... (%d productos)\n", ruta_inv, totalProductos);
+    printf("Cargando cola de escaneo desde '%s'... (%d imágenes)\n", ruta_cfg, cola.total);
+    printf("\n---\n");
+
+    printf("- Inventario Cargado: %d productos\n", totalProductos);
+    imprimir_inventario_ordenado(listaInv);
+
+    printf("\n- Imágenes en Cola (%d):\n", cola.total);
+    NImg *p = cola.ini;
+    while (p) {
+        printf("  - %s\n", p->ruta);
+        p = p->sig;
+    }
+
+    printf("\n- Parámetros de Preprocesamiento Inicial:\n");
+    printf("  - Thres: %d\n", params.thres);
+    printf("  - Contraste: [%d, %d]\n", params.newMin, params.newMax);
+    printf("  - Recorte: [%d, %d, %d, %d]\n", params.recX, params.recY, params.recW, params.recH);
+    printf("---\n");
 
     if (modo == 1) {
         modo_manual();
@@ -127,5 +168,6 @@ int main(int argc, char *argv[]) {
         printf("Modo inválido.\n");
     }
 
+    destruir_hash_inv(inv);
     return 0;
 }

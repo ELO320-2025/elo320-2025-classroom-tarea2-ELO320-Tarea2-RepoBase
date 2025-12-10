@@ -97,3 +97,168 @@ HashInv *cargar_inventario(const char *ruta) {
     fclose(f);
     return h;
 }
+
+NodoProd *cargar_inventario_ordenado(const char *ruta, HashInv *h) {
+    FILE *f = fopen(ruta, "r");
+    if (!f) return NULL;
+
+    NodoProd *ini = NULL;
+    NodoProd *fin = NULL;
+
+    char linea[512];
+
+    while (fgets(linea, sizeof(linea), f)) {
+        linea[strcspn(linea, "\n")] = 0;
+
+        char *nom = strtok(linea, "|");
+        char *precio_str = strtok(NULL, "|");
+        char *codigo = strtok(NULL, "|");
+
+        if (!nom || !precio_str || !codigo) continue;
+
+        int precio = atoi(precio_str);
+
+        insertar_inv(h, nom, precio, codigo);
+
+        NodoProd *n = malloc(sizeof(NodoProd));
+        n->nombre = strdup(nom);
+        n->precio = precio;
+        n->codigo = strdup(codigo);
+        n->sig = NULL;
+
+        if (!ini) {
+            ini = n;
+            fin = n;
+        } else {
+            fin->sig = n;
+            fin = n;
+        }
+    }
+
+    fclose(f);
+    return ini;
+}
+
+int contar_productos(NodoProd *lista) {
+    int c = 0;
+    while (lista) {
+        c++;
+        lista = lista->sig;
+    }
+    return c;
+}
+
+void imprimir_inventario_ordenado(NodoProd *lista) {
+    while (lista) {
+        printf("  - %s (%s)\n", lista->nombre, lista->codigo);
+        lista = lista->sig;
+    }
+}
+
+void init_params(Params *p) {
+    p->thres = 100;
+    p->newMin = 0;
+    p->newMax = 255;
+    p->recX = 0;
+    p->recY = 0;
+    p->recW = 200;
+    p->recH = 100;
+}
+
+void init_cola(ColaImagenes *c) {
+    c->ini = NULL;
+    c->fin = NULL;
+    c->total = 0;
+}
+
+static char *dupstr(const char *s) {
+    char *r = malloc(strlen(s) + 1);
+    if (!r) return NULL;
+    strcpy(r, s);
+    return r;
+}
+
+void push_cola(ColaImagenes *c, const char *ruta) {
+    NImg *n = malloc(sizeof(NImg));
+    if (!n) return;
+    n->ruta = dupstr(ruta);
+    n->sig = NULL;
+    if (!c->ini) {
+        c->ini = n;
+        c->fin = n;
+    } else {
+        c->fin->sig = n;
+        c->fin = n;
+    }
+    c->total++;
+}
+
+NImg *pop_cola(ColaImagenes *c) {
+    if (!c->ini) return NULL;
+    NImg *n = c->ini;
+    c->ini = n->sig;
+    if (!c->ini) c->fin = NULL;
+    c->total--;
+    return n;
+}
+
+int cargar_config(const char *ruta, Params *p, ColaImagenes *c) {
+    FILE *f = fopen(ruta, "r");
+    if (!f) return 0;
+
+    init_params(p);
+    init_cola(c);
+
+    char linea[256];
+    int seccion = 0;
+
+    while (fgets(linea, sizeof(linea), f)) {
+        linea[strcspn(linea, "\n")] = 0;
+        if (strlen(linea) == 0) continue;
+
+        if (strcmp(linea, "Preprocesamiento params") == 0) {
+            seccion = 1;
+            continue;
+        }
+        if (strcmp(linea, "Imagenes") == 0) {
+            seccion = 2;
+            continue;
+        }
+
+        if (seccion == 1) {
+            if (strncmp(linea, "Thres", 5) == 0) {
+                int t;
+                if (sscanf(linea, "Thres %d", &t) == 1)
+                    p->thres = t;
+                continue;
+            }
+
+            if (strncmp(linea, "newMin", 6) == 0) {
+                int a, b;
+                if (sscanf(linea, "newMin %d newMax %d", &a, &b) == 2) {
+                    p->newMin = a;
+                    p->newMax = b;
+                }
+                continue;
+            }
+
+            if (strncmp(linea, "Recorte", 7) == 0) {
+                int x, y, w, h;
+                if (sscanf(linea, "Recorte %d %d %d %d", &x, &y, &w, &h) == 4) {
+                    p->recX = x;
+                    p->recY = y;
+                    p->recW = w;
+                    p->recH = h;
+                }
+                continue;
+            }
+        }
+
+        if (seccion == 2) {
+            push_cola(c, linea);
+        }
+    }
+
+    fclose(f);
+    return 1;
+}
