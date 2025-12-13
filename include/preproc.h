@@ -74,5 +74,28 @@ unsigned char **aplicar_contraste(unsigned char **img, int ancho, int alto, int 
 unsigned char **aplicar_recorte(unsigned char **img, int *ancho, int *alto, int x, int y, int w, int h);
 unsigned char **aplicar_preprocesamiento(unsigned char **img_orig, int *ancho, int *alto, const Params *p);
 
+typedef enum {
+    OP_BINARIZACION,
+    OP_CONTRASTE,
+    OP_RECORTE
+} TipoOperacion;
+
+typedef struct NodoOp {
+    TipoOperacion tipo;
+    struct NodoOp *sig;
+} NodoOp;
+
+typedef struct {
+    NodoOp *top;
+    int size;
+} PilaOps;
+
+void init_pila(PilaOps *p);
+int push_op(PilaOps *p, TipoOperacion tipo);
+int pop_op(PilaOps *p);
+void clear_pila(PilaOps *p);
+unsigned char **aplicar_ops_desde_original(unsigned char **img_orig, int *ancho, int *alto, const Params *p, const PilaOps *ops);
+
+
 
 #endif

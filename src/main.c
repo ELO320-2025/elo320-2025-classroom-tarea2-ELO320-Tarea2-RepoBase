@@ -1,112 +1,168 @@
 #include "main.h"
 
-static unsigned char **leer_ppm_pgm(const char *ruta, int *ancho, int *alto) {
-    FILE *f = fopen(ruta, "r");
-    if (!f) return NULL;
+static void modo_manual(HashInv *inv, ColaImagenes *cola, Params *params_base) {
+    while (cola->total > 0) {
+        NImg *nimg = pop_cola(cola);
+        if (!nimg) return;
 
-    char tipo[3];
-    if (!fgets(tipo, sizeof(tipo), f)) {
-        fclose(f);
-        return NULL;
-    }
-
-    if (tipo[0] != 'P' || (tipo[1] != '2' && tipo[1] != '3')) {
-        fclose(f);
-        return NULL;
-    }
-
-    int c, done = 0;
-    while (!done) {
-        c = fgetc(f);
-        if (c == '#') {
-            while (c != '\n' && c != EOF) c = fgetc(f);
-        } else {
-            ungetc(c, f);
-            done = 1;
+        int ancho = 0, alto = 0;
+        unsigned char **img_orig = leer_ppm_pgm(nimg->ruta, &ancho, &alto);
+        if (!img_orig) {
+            printf("No se pudo leer imagen %s\n", nimg->ruta);
+            free(nimg->ruta);
+            free(nimg);
+            continue;
         }
-    }
 
-    int maxv;
-    if (fscanf(f, "%d %d %d", ancho, alto, &maxv) != 3) {
-        fclose(f);
-        return NULL;
-    }
+        Params params_actual = *params_base;
 
-    unsigned char **mat = malloc((*alto) * sizeof(unsigned char *));
-    if (!mat) {
-        fclose(f);
-        return NULL;
-    }
+        PilaOps ops;
+        init_pila(&ops);
+        push_op(&ops, OP_BINARIZACION);
+        push_op(&ops, OP_CONTRASTE);
+        push_op(&ops, OP_RECORTE);
 
-    int y, x;
-    for (y = 0; y < *alto; y++) {
-        mat[y] = malloc((*ancho) * sizeof(unsigned char));
-        if (!mat[y]) {
-            int k;
-            for (k = 0; k < y; k++) free(mat[k]);
-            free(mat);
-            fclose(f);
-            return NULL;
-        }
-        for (x = 0; x < *ancho; x++) {
-            int r, g, b, v;
-            if (tipo[1] == '2') {
-                fscanf(f, "%d", &v);
-            } else {
-                fscanf(f, "%d %d %d", &r, &g, &b);
-                v = (r + g + b) / 3;
+        int ancho_p = ancho;
+        int alto_p = alto;
+
+        unsigned char **img_proc = aplicar_ops_desde_original(
+            img_orig, &ancho_p, &alto_p, &params_actual, &ops
+        );
+
+        int terminado = 0;
+
+        while (!terminado) {
+            printf("\nProcesando imagen: %s\n", nimg->ruta);
+            printf("1. Undo último paso\n");
+            printf("2. Agregar procesamiento\n");
+            printf("3. Buscar código de barras\n");
+            printf("4. Abortar imagen\n");
+            printf("Seleccione opción: ");
+
+            char buf[64];
+            if (!fgets(buf, sizeof(buf), stdin)) break;
+            int op = atoi(buf);
+
+            if (op == 1) {
+                if (!pop_op(&ops)) {
+                    printf("No hay más pasos para deshacer\n");
+                } else {
+                    liberar_imagen(img_proc, alto_p);
+                    ancho_p = ancho;
+                    alto_p = alto;
+                    img_proc = aplicar_ops_desde_original(
+                        img_orig, &ancho_p, &alto_p, &params_actual, &ops
+                    );
+                }
             }
-            if (v < 0) v = 0;
-            if (v > 255) v = 255;
-            mat[y][x] = (unsigned char)v;
+
+            else if (op == 2) {
+                printf("Agregar procesamiento:\n");
+                printf("1. Umbral de binarización\n");
+                printf("2. Ajuste de contraste\n");
+                printf("3. Recorte\n");
+                printf("4. Rotación\n");
+                printf("Seleccione: ");
+
+                if (!fgets(buf, sizeof(buf), stdin)) continue;
+                int sub = atoi(buf);
+
+                if (sub == 1) {
+                    printf("Nuevo umbral: ");
+                    fgets(buf, sizeof(buf), stdin);
+                    params_actual.thres = atoi(buf);
+                    push_op(&ops, OP_BINARIZACION);
+                }
+
+                else if (sub == 2) {
+                    int a, b;
+                    printf("Nuevo rango (min max): ");
+                    fgets(buf, sizeof(buf), stdin);
+                    sscanf(buf, "%d %d", &a, &b);
+                    params_actual.newMin = a;
+                    params_actual.newMax = b;
+                    push_op(&ops, OP_CONTRASTE);
+                }
+
+                else if (sub == 3) {
+                    int x, y, w, h;
+                    printf("Recorte (x y w h): ");
+                    fgets(buf, sizeof(buf), stdin);
+                    sscanf(buf, "%d %d %d %d", &x, &y, &w, &h);
+                    params_actual.recX = x;
+                    params_actual.recY = y;
+                    params_actual.recW = w;
+                    params_actual.recH = h;
+                    push_op(&ops, OP_RECORTE);
+                }
+
+                else if (sub == 4) {
+                    printf("Rotación (90 / 180 / 270): ");
+                    fgets(buf, sizeof(buf), stdin);
+                    int ang = atoi(buf);
+                    if (ang == 90) push_op(&ops, OP_ROT_90);
+                    else if (ang == 180) push_op(&ops, OP_ROT_180);
+                    else if (ang == 270) push_op(&ops, OP_ROT_270);
+                    else printf("Ángulo inválido\n");
+                }
+
+                liberar_imagen(img_proc, alto_p);
+                ancho_p = ancho;
+                alto_p = alto;
+                img_proc = aplicar_ops_desde_original(
+                    img_orig, &ancho_p, &alto_p, &params_actual, &ops
+                );
+            }
+
+            else if (op == 3) {
+                char codigo[14];
+                int dv;
+                int encontrado = 0;
+
+                for (int k = 30; k <= 70; k += 2) {
+                    int y = alto_p * k / 100;
+                    int r = decodificar_ean13_desde_grises(
+                        img_proc[y], ancho_p, codigo, &dv
+                    );
+                    if (r == 0 || r == 2) {
+                        printf("Código detectado: %s\n", codigo);
+                        if (r == 2)
+                            printf("Advertencia: dígito verificador incorrecto\n");
+
+                        ProductoInv *p = buscar_inv(inv, codigo);
+                        if (p) {
+                            printf("Producto: %s\n", p->nombre);
+                            printf("Precio: %d\n", p->precio);
+                        } else {
+                            printf("Código válido pero no inventariado\n");
+                        }
+                        encontrado = 1;
+                        break;
+                    }
+                }
+
+                if (!encontrado)
+                    printf("No se pudo detectar código\n");
+
+                terminado = 1;
+            }
+
+            else if (op == 4) {
+                printf("Imagen abortada\n");
+                terminado = 1;
+            }
+
+            else {
+                printf("Opción inválida\n");
+            }
         }
+
+        liberar_imagen(img_proc, alto_p);
+        liberar_imagen(img_orig, alto);
+        clear_pila(&ops);
+        free(nimg->ruta);
+        free(nimg);
     }
-
-    fclose(f);
-    return mat;
-}
-
-static void liberar_imagen(unsigned char **img, int alto) {
-    int i;
-    for (i = 0; i < alto; i++) free(img[i]);
-    free(img);
-}
-
-static void modo_manual() {
-    char ruta[256];
-    int ancho = 0, alto = 0;
-    char codigo[14];
-    int dv;
-
-    printf("Ingrese nombre de la imagen: ");
-    fflush(stdout);
-
-    if (!fgets(ruta, sizeof(ruta), stdin)) return;
-    ruta[strcspn(ruta, "\n")] = 0;
-
-    unsigned char **img = leer_ppm_pgm(ruta, &ancho, &alto);
-    if (!img) {
-        printf("No se pudo leer la imagen.\n");
-        return;
-    }
-
-    int encontrado = 0;
-    int k;
-    for (k = 30; k <= 70; k += 2) {
-        int y = alto * k / 100;
-        int r = decodificar_ean13_desde_grises(img[y], ancho, codigo, &dv);
-        if (r == 0 || r == 2) {
-            printf("Fila usada: %d\n", y);
-            printf("Código EAN-13: %s\n", codigo);
-            encontrado = 1;
-            break;
-        }
-    }
-
-    if (!encontrado)
-        printf("No se pudo decodificar el código.\n");
-
-    liberar_imagen(img, alto);
 }
 
 int main(int argc, char *argv[]) {
@@ -120,54 +176,59 @@ int main(int argc, char *argv[]) {
     const char *ruta_cfg = argv[3];
 
     HashInv *inv = crear_hash_inv();
-    NodoProd *listaInv = cargar_inventario_ordenado(ruta_inv, inv);
-    if (!listaInv) {
-        printf("No se pudo cargar inventario.\n");
+    if (!inv) {
+        printf("Error creando inventario\n");
+        return 1;
+    }
+
+    int total = 0;
+    int cambios = 0;
+
+    NodoProd *lista = cargar_inventario_ordenado_verificado(
+        ruta_inv, inv, &total, &cambios
+    );
+
+    if (!lista) {
+        printf("No se pudo cargar inventario\n");
         destruir_hash_inv(inv);
         return 1;
     }
 
-    Params params;
+    if (cambios > 0)
+        reescribir_inventario_archivo(ruta_inv, lista);
+
+    Params params_base;
     ColaImagenes cola;
-    int ok = cargar_config(ruta_cfg, &params, &cola);
-    if (!ok) {
-        printf("No se pudo cargar configuración.\n");
+
+    if (!cargar_config(ruta_cfg, &params_base, &cola)) {
+        printf("No se pudo cargar configuración\n");
+        liberar_inventario_ordenado(lista);
         destruir_hash_inv(inv);
         return 1;
     }
 
-    int totalProductos = contar_productos(listaInv);
-
-    printf("Cargando inventario desde '%s'... (%d productos)\n", ruta_inv, totalProductos);
+    printf("Cargando inventario desde '%s'... (%d productos)\n", ruta_inv, total);
     printf("Cargando cola de escaneo desde '%s'... (%d imágenes)\n", ruta_cfg, cola.total);
     printf("\n---\n");
 
-    printf("- Inventario Cargado: %d productos\n", totalProductos);
-    imprimir_inventario_ordenado(listaInv);
-
-    printf("\n- Imágenes en Cola (%d):\n", cola.total);
-    NImg *p = cola.ini;
-    while (p) {
-        printf("  - %s\n", p->ruta);
-        p = p->sig;
-    }
+    printf("- Inventario Cargado: %d productos\n", total);
+    imprimir_inventario_ordenado(lista);
 
     printf("\n- Parámetros de Preprocesamiento Inicial:\n");
-    printf("  - Thres: %d\n", params.thres);
-    printf("  - Contraste: [%d, %d]\n", params.newMin, params.newMax);
-    printf("  - Recorte: [%d, %d, %d, %d]\n", params.recX, params.recY, params.recW, params.recH);
+    imprimir_params(&params_base);
     printf("---\n");
 
     if (modo == 1) {
-        modo_manual();
+        modo_manual(inv, &cola, &params_base);
     } else if (modo == 2) {
-        printf("Modo automático no implementado aún.\n");
+        printf("Modo automático no implementado aún\n");
     } else if (modo == 3) {
-        printf("Modo semi-automático no implementado aún.\n");
+        printf("Modo semi-automático no implementado aún\n");
     } else {
-        printf("Modo inválido.\n");
+        printf("Modo inválido\n");
     }
 
+    liberar_inventario_ordenado(lista);
     destruir_hash_inv(inv);
     return 0;
 }

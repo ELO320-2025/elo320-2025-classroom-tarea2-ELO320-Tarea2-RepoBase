@@ -449,6 +449,90 @@ unsigned char **aplicar_recorte(unsigned char **img,
     return out;
 }
 
+void init_pila(PilaOps *p) {
+    p->top = NULL;
+    p->size = 0;
+}
+
+int push_op(PilaOps *p, TipoOperacion tipo) {
+    NodoOp *n = malloc(sizeof(NodoOp));
+    if (!n) return 0;
+    n->tipo = tipo;
+    n->sig = p->top;
+    p->top = n;
+    p->size++;
+    return 1;
+}
+
+int pop_op(PilaOps *p) {
+    if (!p->top) return 0;
+    NodoOp *n = p->top;
+    p->top = n->sig;
+    free(n);
+    p->size--;
+    return 1;
+}
+
+void clear_pila(PilaOps *p) {
+    while (p->top) pop_op(p);
+}
+
+static unsigned char **aplicar_una_op(unsigned char **img, int *ancho, int *alto, const Params *p, TipoOperacion tipo){
+    unsigned char **out = NULL;
+
+    if (tipo == OP_BINARIZACION) {
+        out = aplicar_binarizacion(img, *ancho, *alto, p->thres);
+        liberar_imagen(img, *alto);
+        return out;
+    }
+
+    if (tipo == OP_CONTRASTE) {
+        out = aplicar_contraste(img, *ancho, *alto, p->newMin, p->newMax);
+        liberar_imagen(img, *alto);
+        return out;
+    }
+
+    if (tipo == OP_RECORTE) {
+        out = aplicar_recorte(img, ancho, alto, p->recX, p->recY, p->recW, p->recH);
+        liberar_imagen(img, *alto);
+        return out;
+    }
+
+    return img;
+}
+
+unsigned char **aplicar_ops_desde_original(unsigned char **img_orig, int *ancho, int *alto, const Params *p, const PilaOps *ops){
+    unsigned char **img = copiar_imagen(img_orig, *ancho, *alto);
+    if (!img) return NULL;
+
+    if (!ops || ops->size == 0) return img;
+
+    TipoOperacion *orden = malloc(sizeof(TipoOperacion) * ops->size);
+    if (!orden) {
+        liberar_imagen(img, *alto);
+        return NULL;
+    }
+
+    int i = ops->size - 1;
+    NodoOp *n = ops->top;
+    while (n) {
+        orden[i--] = n->tipo;
+        n = n->sig;
+    }
+
+    for (i = 0; i < ops->size; i++) {
+        img = aplicar_una_op(img, ancho, alto, p, orden[i]);
+        if (!img) {
+            free(orden);
+            return NULL;
+        }
+    }
+
+    free(orden);
+    return img;
+}
+
+
 /**
 
 unsigned char **aplicar_preprocesamiento(unsigned char **img_orig, int *ancho, int *alto, const Params *p) {
