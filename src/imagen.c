@@ -1,21 +1,63 @@
 #include "imagen.h"
 
-unsigned char **copiar_imagen(unsigned char **img, int ancho, int alto) {
-    int y, x;
-    unsigned char **out = malloc(alto * sizeof(unsigned char *));
-    if (!out) return NULL;
+unsigned char **leer_ppm_pgm(const char *ruta, int *ancho, int *alto) {
+    FILE *f = fopen(ruta, "r");
+    if (!f) return NULL;
 
-    for (y = 0; y < alto; y++) {
-        out[y] = malloc(ancho * sizeof(unsigned char));
-        if (!out[y]) {
-            for (int k = 0; k < y; k++) free(out[k]);
-            free(out);
+    char tipo[3];
+    if (!fgets(tipo, sizeof(tipo), f)) {
+        fclose(f);
+        return NULL;
+    }
+
+    if (tipo[0] != 'P' || (tipo[1] != '2' && tipo[1] != '3')) {
+        fclose(f);
+        return NULL;
+    }
+
+    int c;
+    while ((c = fgetc(f)) == '#') {
+        while (c != '\n' && c != EOF) c = fgetc(f);
+    }
+    ungetc(c, f);
+
+    int maxv;
+    if (fscanf(f, "%d %d %d", ancho, alto, &maxv) != 3) {
+        fclose(f);
+        return NULL;
+    }
+
+    unsigned char **img = malloc(*alto * sizeof(unsigned char *));
+    if (!img) {
+        fclose(f);
+        return NULL;
+    }
+
+    for (int y = 0; y < *alto; y++) {
+        img[y] = malloc(*ancho * sizeof(unsigned char));
+        if (!img[y]) {
+            for (int k = 0; k < y; k++) free(img[k]);
+            free(img);
+            fclose(f);
             return NULL;
         }
-        for (x = 0; x < ancho; x++)
-            out[y][x] = img[y][x];
+
+        for (int x = 0; x < *ancho; x++) {
+            int r, g, b, v;
+            if (tipo[1] == '2') {
+                fscanf(f, "%d", &v);
+            } else {
+                fscanf(f, "%d %d %d", &r, &g, &b);
+                v = (r + g + b) / 3;
+            }
+            if (v < 0) v = 0;
+            if (v > 255) v = 255;
+            img[y][x] = (unsigned char)v;
+        }
     }
-    return out;
+
+    fclose(f);
+    return img;
 }
 
 void liberar_imagen(unsigned char **img, int alto) {
@@ -23,46 +65,51 @@ void liberar_imagen(unsigned char **img, int alto) {
     free(img);
 }
 
-unsigned char **binarizar_imagen(unsigned char **img, int ancho, int alto, int thres) {
+unsigned char **copiar_imagen(unsigned char **img, int ancho, int alto) {
+    unsigned char **out = malloc(alto * sizeof(unsigned char *));
+    if (!out) return NULL;
+
+    for (int y = 0; y < alto; y++) {
+        out[y] = malloc(ancho * sizeof(unsigned char));
+        if (!out[y]) {
+            for (int k = 0; k < y; k++) free(out[k]);
+            free(out);
+            return NULL;
+        }
+        for (int x = 0; x < ancho; x++)
+            out[y][x] = img[y][x];
+    }
+    return out;
+}
+
+unsigned char **img_binarizar(unsigned char **img, int ancho, int alto, int thres) {
     unsigned char **out = copiar_imagen(img, ancho, alto);
     if (!out) return NULL;
 
     for (int y = 0; y < alto; y++)
         for (int x = 0; x < ancho; x++)
-            out[y][x] = (img[y][x] > thres) ? 255 : 0;
+            out[y][x] = (out[y][x] < thres) ? 0 : 255;
 
     return out;
 }
 
-unsigned char **ajustar_contraste(unsigned char **img, int ancho, int alto,
-                                  int newMin, int newMax) {
-    int Imin = 255;
-    int Imax = 0;
-
-    for (int y = 0; y < alto; y++)
-        for (int x = 0; x < ancho; x++) {
-            if (img[y][x] < Imin) Imin = img[y][x];
-            if (img[y][x] > Imax) Imax = img[y][x];
-        }
-
-    if (Imax == Imin) return copiar_imagen(img, ancho, alto);
-
+unsigned char **img_contraste(unsigned char **img, int ancho, int alto, int newMin, int newMax) {
     unsigned char **out = copiar_imagen(img, ancho, alto);
     if (!out) return NULL;
 
-    for (int y = 0; y < alto; y++)
+    for (int y = 0; y < alto; y++) {
         for (int x = 0; x < ancho; x++) {
             int v = img[y][x];
-            int nv = (v - Imin) * (newMax - newMin) / (Imax - Imin) + newMin;
+            int nv = newMin + v * (newMax - newMin) / 255;
             if (nv < 0) nv = 0;
             if (nv > 255) nv = 255;
             out[y][x] = (unsigned char)nv;
         }
-
+    }
     return out;
 }
 
-unsigned char **recortar_imagen(unsigned char **img, int *ancho, int *alto, int x, int y, int w, int h) {
+unsigned char **img_recortar(unsigned char **img, int *ancho, int *alto, int x, int y, int w, int h) {
     if (x < 0 || y < 0 || x + w > *ancho || y + h > *alto)
         return NULL;
 
@@ -85,22 +132,20 @@ unsigned char **recortar_imagen(unsigned char **img, int *ancho, int *alto, int 
     return out;
 }
 
-unsigned char **rotar_imagen_90(unsigned char **img, int *ancho, int *alto) {
-    int w = *ancho;
-    int h = *alto;
-
+unsigned char **img_rotar_90(unsigned char **img, int *ancho, int *alto) {
+    int w = *ancho, h = *alto;
     unsigned char **out = malloc(w * sizeof(unsigned char *));
     if (!out) return NULL;
 
-    for (int i = 0; i < w; i++) {
-        out[i] = malloc(h * sizeof(unsigned char));
-        if (!out[i]) {
-            for (int k = 0; k < i; k++) free(out[k]);
+    for (int x = 0; x < w; x++) {
+        out[x] = malloc(h * sizeof(unsigned char));
+        if (!out[x]) {
+            for (int k = 0; k < x; k++) free(out[k]);
             free(out);
             return NULL;
         }
-        for (int j = 0; j < h; j++)
-            out[i][j] = img[h - 1 - j][i];
+        for (int y = 0; y < h; y++)
+            out[x][y] = img[h - 1 - y][x];
     }
 
     *ancho = h;
@@ -108,39 +153,23 @@ unsigned char **rotar_imagen_90(unsigned char **img, int *ancho, int *alto) {
     return out;
 }
 
-unsigned char **rotar_imagen_180(unsigned char **img, int *ancho, int *alto) {
-    int w = *ancho;
-    int h = *alto;
-
-    unsigned char **out = copiar_imagen(img, w, h);
-    if (!out) return NULL;
-
-    for (int y = 0; y < h; y++)
-        for (int x = 0; x < w; x++)
-            out[y][x] = img[h - 1 - y][w - 1 - x];
-
+unsigned char **img_rotar_180(unsigned char **img, int *ancho, int *alto) {
+    unsigned char **tmp = img_rotar_90(img, ancho, alto);
+    unsigned char **out = img_rotar_90(tmp, ancho, alto);
+    liberar_imagen(tmp, *alto);
     return out;
 }
 
-unsigned char **rotar_imagen_270(unsigned char **img, int *ancho, int *alto) {
-    int w = *ancho;
-    int h = *alto;
-
-    unsigned char **out = malloc(w * sizeof(unsigned char *));
-    if (!out) return NULL;
-
-    for (int i = 0; i < w; i++) {
-        out[i] = malloc(h * sizeof(unsigned char));
-        if (!out[i]) {
-            for (int k = 0; k < i; k++) free(out[k]);
-            free(out);
-            return NULL;
-        }
-        for (int j = 0; j < h; j++)
-            out[i][j] = img[j][w - 1 - i];
-    }
-
-    *ancho = h;
-    *alto = w;
+unsigned char **img_rotar_270(unsigned char **img, int *ancho, int *alto) {
+    unsigned char **tmp = img_rotar_180(img, ancho, alto);
+    unsigned char **out = img_rotar_90(tmp, ancho, alto);
+    liberar_imagen(tmp, *alto);
     return out;
+}
+
+unsigned char **img_rotar(unsigned char **img, int *ancho, int *alto, int grados) {
+    if (grados == 90) return img_rotar_90(img, ancho, alto);
+    if (grados == 180) return img_rotar_180(img, ancho, alto);
+    if (grados == 270) return img_rotar_270(img, ancho, alto);
+    return NULL;
 }
