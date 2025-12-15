@@ -5,7 +5,7 @@ newMin 0 newMax 255
 Recorte 50 50 200 100
 
 Imagenes
-data/Nivel1/7802920000084.pgm
+data/Nivel1/7802920000084.ppm
 data/Nivel1/7801420250142.ppm
 data/Nivel1/9300601006093.ppm
 data/Nivel2/7801700100451_mod_R270.ppm

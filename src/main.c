@@ -1,5 +1,75 @@
 #include "main.h"
 
+static int extraer_ean_de_ruta(const char *ruta, char *out) {
+    int len = strlen(ruta);
+    int i, j;
+
+    for (i = 0; i + 12 < len; i++) {
+        int ok = 1;
+        for (j = 0; j < 13; j++) {
+            if (ruta[i + j] < '0' || ruta[i + j] > '9') {
+                ok = 0;
+                break;
+            }
+        }
+        if (ok) {
+            memcpy(out, ruta + i, 13);
+            out[13] = 0;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void buscar_codigo_en_imagen(
+    unsigned char **img,
+    int ancho,
+    int alto,
+    const char *ruta_img,
+    HashInv *inv
+) {
+    char codigo[14];
+    int dv_img = 0;
+    int encontrado = 0;
+    int r = 1;
+
+    for (int k = 30; k <= 70; k += 2) {
+        int y = alto * k / 100;
+        r = decodificar_ean13_desde_grises(img[y], ancho, codigo, &dv_img);
+        if (r == 0 || r == 2) {
+            encontrado = 1;
+            break;
+        }
+    }
+
+    if (!encontrado) {
+        printf("No se pudo detectar código de barras\n");
+        return;
+    }
+
+    printf("Código leído: %s\n", codigo);
+
+    if (r == 2)
+        printf("Advertencia: dígito verificador incorrecto en código leído\n");
+
+    char ean_arch[14];
+    if (extraer_ean_de_ruta(ruta_img, ean_arch)) {
+        if (!ean13_validar(ean_arch))
+            printf("Advertencia: DV incorrecto en nombre del archivo\n");
+        else if (strcmp(ean_arch, codigo) != 0)
+            printf("Advertencia: código leído no coincide con nombre del archivo\n");
+    }
+
+    ProductoInv *p = buscar_inv(inv, codigo);
+    if (p) {
+        printf("Producto encontrado\n");
+        printf("Nombre : %s\n", p->nombre);
+        printf("Precio : %d\n", p->precio);
+    } else {
+        printf("Código válido pero no inventariado\n");
+    }
+}
+
 static void imprimir_procesamiento(const PilaOps *ops, const Params *p) {
     TipoOperacion orden[16];
     int n = ops->size;
@@ -90,7 +160,7 @@ static void modo_manual(HashInv *inv, ColaImagenes *cola, Params *params_base) {
             }
 
             else if (op == 3) {
-                printf("Búsqueda de código aún no integrada completamente\n");
+                buscar_codigo_en_imagen(img_proc, ancho_p, alto_p, nimg->ruta, inv);
                 terminado = 1;
             }
 
