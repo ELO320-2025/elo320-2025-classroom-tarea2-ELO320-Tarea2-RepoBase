@@ -2,7 +2,7 @@ Preprocesamiento params
 
 Thres 100
 newMin 0 newMax 255
-Recorte 50 50 200 100
+Recorte 47 76 392 116
 
 Imagenes
 data/Nivel1/7802920000084.ppm
