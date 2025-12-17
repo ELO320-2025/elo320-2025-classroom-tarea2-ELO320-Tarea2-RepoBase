@@ -43,7 +43,7 @@ static void buscar_codigo_en_imagen(
     }
 
     if (!encontrado) {
-        printf("No se pudo detectar código de barras\n");
+        printf("ERROR: No se pudo decodificar el código EAN-13. Patrones de barras no reconocidos.\n");
         return;
     }
 
