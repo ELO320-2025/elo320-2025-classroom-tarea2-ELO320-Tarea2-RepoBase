@@ -11,7 +11,8 @@ static char *dupstr(const char *s) {
 static unsigned long hash(const char *s) {
     unsigned long h = 5381;
     int c;
-    while ((c = *s++)) h = ((h << 5) + h) + c;
+    while ((c = *s++))
+        h = ((h << 5) + h) + c;
     return h;
 }
 
@@ -55,7 +56,8 @@ ProductoInv *buscar_inv(HashInv *h, const char *codigo) {
     unsigned long k = hash(codigo) % h->capacidad;
     for (int i = 0; i < h->capacidad; i++) {
         int p = (k + i) % h->capacidad;
-        if (!h->tabla[p]) return NULL;
+        if (!h->tabla[p]) 
+            return NULL;
         if (strcmp(h->tabla[p]->codigo, codigo) == 0)
             return h->tabla[p];
     }
@@ -64,20 +66,12 @@ ProductoInv *buscar_inv(HashInv *h, const char *codigo) {
 
 void imprimir_inventario_ordenado(NodoProd *lista) {
     while (lista) {
-        printf("  - %s | %d | %s\n",
-               lista->nombre,
-               lista->precio,
-               lista->codigo);
+        printf("  - %s | %d | %s\n", lista->nombre, lista->precio, lista->codigo);
         lista = lista->sig;
     }
 }
 
-NodoProd *cargar_inventario_ordenado_verificado(
-    const char *ruta,
-    HashInv *h,
-    int *total,
-    int *cambios
-) {
+NodoProd *cargar_inventario_ordenado_verificado(const char *ruta, HashInv *h, int *total, int *cambios) {
     FILE *f = fopen(ruta, "r");
     if (!f) return NULL;
 
@@ -100,25 +94,17 @@ NodoProd *cargar_inventario_ordenado_verificado(
         n->codigo = dupstr(cod);
         n->sig = NULL;
 
-        if (!ini) ini = fin = n;
-        else { fin->sig = n; fin = n; }
+        if (!ini) 
+            ini = fin = n;
+        else { 
+            fin->sig = n; fin = n; 
+        }
 
         (*total)++;
     }
 
     fclose(f);
     return ini;
-}
-
-int reescribir_inventario_archivo(const char *ruta, NodoProd *l) {
-    FILE *f = fopen(ruta, "w");
-    if (!f) return 0;
-    while (l) {
-        fprintf(f, "%s|%d|%s\n", l->nombre, l->precio, l->codigo);
-        l = l->sig;
-    }
-    fclose(f);
-    return 1;
 }
 
 void liberar_inventario_ordenado(NodoProd *l) {
@@ -135,17 +121,8 @@ void init_params(Params *p) {
     p->thres = 100;
     p->newMin = 0;
     p->newMax = 255;
-    p->recX = 0;
-    p->recY = 0;
-    p->recW = 200;
-    p->recH = 100;
+    p->recX = p->recY = p->recW = p->recH = 0;
     p->rot = 0;
-}
-
-void imprimir_params(const Params *p) {
-    printf("  - Thres: %d\n", p->thres);
-    printf("  - Contraste: [%d, %d]\n", p->newMin, p->newMax);
-    printf("  - Recorte: [%d %d %d %d]\n", p->recX, p->recY, p->recW, p->recH);
 }
 
 void init_cola(ColaImagenes *c) {
@@ -157,16 +134,21 @@ void push_cola(ColaImagenes *c, const char *ruta) {
     NImg *n = malloc(sizeof(NImg));
     n->ruta = dupstr(ruta);
     n->sig = NULL;
-    if (!c->ini) c->ini = c->fin = n;
-    else { c->fin->sig = n; c->fin = n; }
+    if (!c->ini) 
+        c->ini = c->fin = n;
+    else { 
+        c->fin->sig = n; c->fin = n; 
+    }
     c->total++;
 }
 
 NImg *pop_cola(ColaImagenes *c) {
-    if (!c->ini) return NULL;
+    if (!c->ini) 
+        return NULL;
     NImg *n = c->ini;
     c->ini = n->sig;
-    if (!c->ini) c->fin = NULL;
+    if (!c->ini) 
+        c->fin = NULL;
     c->total--;
     return n;
 }
@@ -183,8 +165,7 @@ int cargar_config(const char *ruta, Params *p, ColaImagenes *c) {
 
     while (fgets(linea, sizeof(linea), f)) {
         linea[strcspn(linea, "\n")] = 0;
-
-        if (strlen(linea) == 0)
+        if (strlen(linea) == 0) 
             continue;
 
         if (strcmp(linea, "Preprocesamiento params") == 0) {
@@ -199,30 +180,20 @@ int cargar_config(const char *ruta, Params *p, ColaImagenes *c) {
 
         if (seccion == 1) {
             int a, b, x, y, w, h;
-
-            if (sscanf(linea, "Thres %d", &a) == 1) {
+            if (sscanf(linea, "Thres %d", &a) == 1)
                 p->thres = a;
-                continue;
-            }
-
-            if (sscanf(linea, "newMin %d newMax %d", &a, &b) == 2) {
+            else if (sscanf(linea, "newMin %d newMax %d", &a, &b) == 2) {
                 p->newMin = a;
                 p->newMax = b;
-                continue;
             }
-
-            if (sscanf(linea, "Recorte %d %d %d %d", &x, &y, &w, &h) == 4) {
+            else if (sscanf(linea, "Recorte %d %d %d %d", &x, &y, &w, &h) == 4) {
                 p->recX = x;
                 p->recY = y;
                 p->recW = w;
                 p->recH = h;
-                continue;
             }
-
-            continue;
         }
-
-        if (seccion == 2) {
+        else if (seccion == 2) {
             push_cola(c, linea);
         }
     }
@@ -236,9 +207,10 @@ void init_pila(PilaOps *p) {
     p->size = 0;
 }
 
-int push_op(PilaOps *p, TipoOperacion t) {
+int push_op(PilaOps *p, TipoOperacion tipo, int valor) {
     NodoOp *n = malloc(sizeof(NodoOp));
-    n->tipo = t;
+    n->tipo = tipo;
+    n->valor = valor;
     n->sig = p->top;
     p->top = n;
     p->size++;
@@ -246,7 +218,8 @@ int push_op(PilaOps *p, TipoOperacion t) {
 }
 
 int pop_op(PilaOps *p) {
-    if (!p->top) return 0;
+    if (!p->top) 
+        return 0;
     NodoOp *n = p->top;
     p->top = n->sig;
     free(n);
@@ -255,39 +228,55 @@ int pop_op(PilaOps *p) {
 }
 
 void clear_pila(PilaOps *p) {
-    while (p->top) pop_op(p);
+    while (p->top) 
+        pop_op(p);
 }
 
-static unsigned char **aplicar_una(
-    unsigned char **img,
-    int *ancho,
-    int *alto,
-    const Params *p,
-    TipoOperacion t
-) {
-    unsigned char **out = img;
+static unsigned char **aplicar_una(unsigned char **img, int *ancho, int *alto, const Params *p, const NodoOp *op) {
+    int alto_ant = *alto;
+    int ancho_ant = *ancho;
 
-    if (t == OP_BINARIZACION)
-        out = img_binarizar(img, *ancho, *alto, p->thres);
-    else if (t == OP_CONTRASTE)
-        out = img_contraste(img, *ancho, *alto, p->newMin, p->newMax);
-    else if (t == OP_RECORTE)
+    unsigned char **out = NULL;
+
+    if (op->tipo == OP_BINARIZACION)
+        out = img_binarizar(img, ancho_ant, alto_ant, op->valor);
+
+    else if (op->tipo == OP_CONTRASTE)
+        out = img_contraste(img, ancho_ant, alto_ant, p->newMin, p->newMax);
+
+    else if (op->tipo == OP_RECORTE)
         out = img_recortar(img, ancho, alto, p->recX, p->recY, p->recW, p->recH);
-    else if (t == OP_ROTACION)
-        out = img_rotar(img, ancho, alto, p->rot);
 
-    liberar_imagen(img, *alto);
+    else if (op->tipo == OP_ROTACION) {
+        int ang = op->valor;
+
+        if (ang == 90 || ang == 180 || ang == 270)
+            out = img_rotar(img, ancho, alto, ang);
+        else
+            out = img_rotar_arbitraria(img, ancho, alto, ang);
+    }
+    
+    if (!out) {
+        *ancho = ancho_ant;
+        *alto  = alto_ant;
+        return img;
+    }
+
+    liberar_imagen(img, alto_ant);
     return out;
 }
 
 unsigned char **aplicar_ops_desde_original(unsigned char **img_orig, int *ancho, int *alto, const Params *p, const PilaOps *ops) {
-    unsigned char **img = copiar_imagen(img_orig, *ancho, *alto);
-    if (!ops || ops->size == 0) return img;
 
-    TipoOperacion orden[16];
+    unsigned char **img = copiar_imagen(img_orig, *ancho, *alto);
+    if (!ops || ops->size == 0) 
+        return img;
+
+    NodoOp *orden[64];
     int i = ops->size - 1;
+
     for (NodoOp *n = ops->top; n; n = n->sig)
-        orden[i--] = n->tipo;
+        orden[i--] = n;
 
     for (i = 0; i < ops->size; i++)
         img = aplicar_una(img, ancho, alto, p, orden[i]);

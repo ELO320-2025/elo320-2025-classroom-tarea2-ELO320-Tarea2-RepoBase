@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 unsigned char **leer_ppm_pgm(const char *ruta, int *ancho, int *alto);
 void liberar_imagen(unsigned char **img, int alto);
@@ -16,6 +17,7 @@ unsigned char **img_recortar(unsigned char **img, int *ancho, int *alto, int x, 
 unsigned char **img_rotar_90(unsigned char **img, int *ancho, int *alto);
 unsigned char **img_rotar_180(unsigned char **img, int *ancho, int *alto);
 unsigned char **img_rotar_270(unsigned char **img, int *ancho, int *alto);
+unsigned char **img_rotar_arbitraria(unsigned char **img, int *ancho, int *alto, int grados);
 
 unsigned char **img_rotar(unsigned char **img, int *ancho, int *alto, int grados);
 

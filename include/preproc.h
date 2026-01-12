@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+
 #include "imagen.h"
 #include "reconocimiento.h"
 
@@ -29,9 +30,10 @@ HashInv *crear_hash_inv();
 void destruir_hash_inv(HashInv *h);
 int insertar_inv(HashInv *h, const char *nombre, int precio, const char *codigo);
 ProductoInv *buscar_inv(HashInv *h, const char *codigo);
+
+NodoProd *cargar_inventario_ordenado_verificado(const char *ruta, HashInv *h, int *total, int *cambios_dv);
+
 void imprimir_inventario_ordenado(NodoProd *lista);
-NodoProd *cargar_inventario_ordenado_verificado(const char *ruta, HashInv *h, int *total,int *cambios_dv);
-int reescribir_inventario_archivo(const char *ruta, NodoProd *lista);
 void liberar_inventario_ordenado(NodoProd *lista);
 
 typedef struct {
@@ -74,6 +76,7 @@ typedef enum {
 
 typedef struct NodoOp {
     TipoOperacion tipo;
+    int valor;
     struct NodoOp *sig;
 } NodoOp;
 
@@ -83,10 +86,9 @@ typedef struct {
 } PilaOps;
 
 void init_pila(PilaOps *p);
-int push_op(PilaOps *p, TipoOperacion tipo);
+int push_op(PilaOps *p, TipoOperacion tipo, int valor);
 int pop_op(PilaOps *p);
 void clear_pila(PilaOps *p);
-
-unsigned char **aplicar_ops_desde_original( unsigned char **img_orig, int *ancho, int *alto, const Params *p, const PilaOps *ops);
+unsigned char **aplicar_ops_desde_original(unsigned char **img_orig, int *ancho, int *alto, const Params *p, const PilaOps *ops);
 
 #endif
